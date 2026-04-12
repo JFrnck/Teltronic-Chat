@@ -1,34 +1,41 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Res, HttpStatus } from '@nestjs/common';
+import type { Response } from 'express';
 import { WhatsappService } from './whatsapp.service';
-import { CreateWhatsappDto } from './dto/create-whatsapp.dto';
-import { UpdateWhatsappDto } from './dto/update-whatsapp.dto';
 
 @Controller('whatsapp')
 export class WhatsappController {
   constructor(private readonly whatsappService: WhatsappService) {}
 
-  @Post()
-  create(@Body() createWhatsappDto: CreateWhatsappDto) {
-    return this.whatsappService.create(createWhatsappDto);
-  }
-
+  // 1. Verificación del Webhook (Solo se usa una vez al configurar en Meta)
   @Get()
-  findAll() {
-    return this.whatsappService.findAll();
+  verifyWebhook(
+    @Query('hub.mode') mode: string,
+    @Query('hub.verify_token') token: string,
+    @Query('hub.challenge') challenge: string,
+    @Res() res: Response,
+  ) {
+    const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+
+    if (mode === 'subscribe' && token === verifyToken) {
+      return res.status(HttpStatus.OK).send(challenge);
+    }
+    return res.sendStatus(HttpStatus.FORBIDDEN);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.whatsappService.findOne(+id);
-  }
+  // 2. Recepción de mensajes y eventos
+  @Post()
+  async receiveMessage(@Body() body: any, @Res() res: Response) {
+    // Es vital responder 200 OK de inmediato para que Meta no reintente el envío
+    res.sendStatus(HttpStatus.OK);
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateWhatsappDto: UpdateWhatsappDto) {
-    return this.whatsappService.update(+id, updateWhatsappDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.whatsappService.remove(+id);
+    try {
+      await this.whatsappService.handleWebhook(body);
+    } catch (error) {
+      console.error('Error procesando webhook:', error);
+    }
   }
 }
+
+
+
+

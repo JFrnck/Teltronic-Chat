@@ -1,26 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import { CreateWhatsappDto } from './dto/create-whatsapp.dto';
-import { UpdateWhatsappDto } from './dto/update-whatsapp.dto';
+import { MetaApiService } from './api/meta-api.service';
 
 @Injectable()
 export class WhatsappService {
-  create(createWhatsappDto: CreateWhatsappDto) {
-    return 'This action adds a new whatsapp';
-  }
+  // Inyectamos nuestro propio cliente en lugar de HttpService
+  constructor(private readonly metaApi: MetaApiService) {}
 
-  findAll() {
-    return `This action returns all whatsapp`;
-  }
+  async handleWebhook(body: any) {
+    const value = body.entry?.[0]?.changes?.[0]?.value;
 
-  findOne(id: number) {
-    return `This action returns a #${id} whatsapp`;
-  }
+    if (value?.messages) {
+      const message = value.messages[0];
+      const from = message.from;
+      const text = message.text?.body;
 
-  update(id: number, updateWhatsappDto: UpdateWhatsappDto) {
-    return `This action updates a #${id} whatsapp`;
-  }
+      console.log(`📩 Recibido: ${text} de ${from}`);
 
-  remove(id: number) {
-    return `This action removes a #${id} whatsapp`;
+      try {
+        // La llamada ahora es limpia y semántica
+        await this.metaApi.sendText(from, `JeanBot procesó: "${text}"`);
+        console.log(`✅ Mensaje respondido a ${from}`);
+      } catch (error: unknown) {
+         if (error instanceof Error) {
+            console.error('❌ No se pudo enviar el mensaje:', error.message);
+         }
+      }
+    }
   }
 }
