@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Query, Res, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Res, HttpStatus, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { WhatsappService } from './whatsapp.service';
+import { WhatsappSignatureGuard } from './guards/whatsapp-signature.guards';
 
 @Controller('whatsapp')
 export class WhatsappController {
@@ -23,15 +24,17 @@ export class WhatsappController {
   }
 
   // 2. Recepción de mensajes y eventos
-  @Post()
+ @Post()
+  @UseGuards(WhatsappSignatureGuard)
   async receiveMessage(@Body() body: any, @Res() res: Response) {
-    // Es vital responder 200 OK de inmediato para que Meta no reintente el envío
     res.sendStatus(HttpStatus.OK);
 
     try {
       await this.whatsappService.handleWebhook(body);
-    } catch (error) {
-      console.error('Error procesando webhook:', error);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('❌ Error procesando webhook:', error.message);
+      }
     }
   }
 }
